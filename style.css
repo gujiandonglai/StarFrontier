@@ -1,0 +1,924 @@
+/* ------------------------------------------------------------------
+   style.css
+   设计基调：并非通用后台仪表盘风格，而是取材自「深空座舱仪表」——
+   青色（离子推进/护盾）与琥珀色（引擎过载/警告）双色体系，
+   全部数字使用等宽字体，搭配方括号包裹的仪表读数（[ VEL 128 m/s ]），
+   模拟老式战机 HUD 的直角取景与刻度感，避免落入
+   「暖米色+衬线大字」或「纯黑+单一荧光绿」这类默认模板。
+------------------------------------------------------------------ */
+
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@500;600;700&display=swap');
+
+:root {
+  --void: #05070c;
+  --void-deep: #010204;
+  --cyan: #2ec4ff;
+  --cyan-dim: rgba(46, 196, 255, 0.35);
+  --amber: #ffb84d;
+  --steel: #8fa3b3;
+  --hud-font: 'Share Tech Mono', monospace;
+  --display-font: 'Rajdhani', sans-serif;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: radial-gradient(ellipse at 50% 30%, var(--void) 0%, var(--void-deep) 100%);
+  font-family: var(--hud-font);
+  color: var(--cyan);
+  cursor: crosshair;
+}
+
+#game-canvas {
+  position: fixed;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ============ HUD 根容器：不拦截鼠标事件，纯覆盖显示 ============ */
+#hud-root {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ============ 中央准星 ============ */
+.reticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 46px;
+  height: 46px;
+  transform: translate(-50%, -50%);
+}
+.reticle-ring {
+  position: absolute;
+  inset: 0;
+  border: 1px solid var(--cyan-dim);
+  border-radius: 50%;
+}
+.reticle-ring::before,
+.reticle-ring::after {
+  content: '';
+  position: absolute;
+  background: var(--cyan);
+  opacity: 0.8;
+}
+.reticle-ring::before {
+  top: -6px;
+  left: 50%;
+  width: 1px;
+  height: 6px;
+  transform: translateX(-50%);
+}
+.reticle-ring::after {
+  bottom: -6px;
+  left: 50%;
+  width: 1px;
+  height: 6px;
+  transform: translateX(-50%);
+}
+.reticle-dot {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  background: var(--cyan);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px 1px var(--cyan);
+}
+
+/* ============ 仪表簇通用 ============ */
+.instrument-cluster {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.instrument-cluster--bl {
+  left: 28px;
+  bottom: 28px;
+}
+.instrument-cluster--tr {
+  right: 28px;
+  top: 28px;
+  align-items: flex-end;
+}
+
+.instrument {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-shadow: 0 0 6px var(--cyan-dim);
+}
+.instrument__bracket {
+  color: var(--steel);
+  opacity: 0.6;
+}
+.instrument__label {
+  color: var(--steel);
+  font-size: 12px;
+  letter-spacing: 2px;
+}
+.instrument__value {
+  font-size: 20px;
+  font-weight: 700;
+  min-width: 2.2em;
+  display: inline-block;
+  text-align: right;
+}
+.instrument__unit {
+  font-size: 11px;
+  color: var(--steel);
+}
+
+.instrument--ghost {
+  opacity: 0.55;
+}
+.instrument--ghost .instrument__value {
+  color: var(--cyan);
+}
+
+.instrument--boost {
+  margin-top: 2px;
+  padding: 2px 10px;
+  border: 1px solid var(--cyan-dim);
+  color: var(--steel);
+  font-size: 11px;
+  letter-spacing: 3px;
+  width: fit-content;
+  transition: all 0.15s ease-out;
+}
+.instrument--boost.active {
+  color: var(--void-deep);
+  background: var(--amber);
+  border-color: var(--amber);
+  box-shadow: 0 0 14px 2px rgba(255, 184, 77, 0.7);
+}
+
+/* ============ 品牌标识 ============ */
+.brand-mark {
+  position: absolute;
+  top: 28px;
+  left: 28px;
+  display: flex;
+  flex-direction: column;
+  font-family: var(--display-font);
+}
+.brand-mark__title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #eaf6ff;
+  text-shadow: 0 0 10px var(--cyan-dim);
+}
+.brand-mark__subtitle {
+  font-size: 12px;
+  color: var(--steel);
+  letter-spacing: 1px;
+  margin-top: 2px;
+}
+
+/* ============ 底部操作提示 ============ */
+.control-hints {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 22px;
+  font-size: 12px;
+  color: var(--steel);
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.control-hints b {
+  color: var(--cyan);
+  margin-right: 4px;
+}
+
+/* ============ Phase2：副武器（导弹）就绪指示 ============ */
+.instrument--secondary {
+  margin-top: 2px;
+  padding: 2px 10px;
+  border: 1px solid var(--cyan-dim);
+  color: var(--steel);
+  font-size: 11px;
+  letter-spacing: 2px;
+  width: fit-content;
+  opacity: 0.5;
+  transition: all 0.15s ease-out;
+}
+.instrument--secondary.ready {
+  color: var(--cyan);
+  border-color: var(--cyan);
+  opacity: 1;
+  text-shadow: 0 0 8px var(--cyan-dim);
+}
+
+/* ============ Phase2：右下角船体/护盾条形仪表 ============ */
+.instrument-cluster--br {
+  right: 28px;
+  bottom: 28px;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.bar-instrument {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.bar-instrument__label {
+  font-size: 11px;
+  color: var(--steel);
+  letter-spacing: 2px;
+  width: 46px;
+  text-align: right;
+}
+.bar-instrument__track {
+  width: 140px;
+  height: 8px;
+  border: 1px solid var(--cyan-dim);
+  background: rgba(255, 255, 255, 0.04);
+  position: relative;
+  overflow: hidden;
+}
+.bar-instrument__fill {
+  height: 100%;
+  width: 100%;
+  transition: width 0.2s ease-out, background-color 0.2s ease-out;
+}
+.bar-instrument__fill--hull {
+  background: var(--cyan);
+  box-shadow: 0 0 8px 0 var(--cyan-dim);
+}
+.bar-instrument__fill--hull.critical {
+  background: #ff5d47;
+  box-shadow: 0 0 10px 0 rgba(255, 93, 71, 0.6);
+}
+.bar-instrument__fill--shield {
+  background: var(--amber);
+  box-shadow: 0 0 8px 0 rgba(255, 184, 77, 0.5);
+}
+.bar-instrument__fill--energy {
+  background: #b14bff;
+  box-shadow: 0 0 8px 0 rgba(177, 75, 255, 0.5);
+}
+.bar-instrument__value {
+  font-size: 13px;
+  font-weight: 700;
+  width: 2.6em;
+  text-align: right;
+}
+
+/* ============ Phase2：阵亡遮罩 ============ */
+.game-over-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(1, 2, 4, 0);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s ease-out, background-color 0.6s ease-out;
+}
+.game-over-overlay.visible {
+  opacity: 1;
+  background: rgba(1, 2, 4, 0.72);
+}
+.game-over-overlay__title {
+  font-family: var(--display-font);
+  font-size: 42px;
+  font-weight: 700;
+  letter-spacing: 8px;
+  color: #ff5d47;
+  text-shadow: 0 0 24px rgba(255, 93, 71, 0.6);
+}
+.game-over-overlay__hint {
+  font-size: 13px;
+  color: var(--steel);
+  letter-spacing: 1px;
+}
+
+/* ============ Phase3：当前星域信息（挂在品牌标识下方） ============ */
+.sector-info {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 6px;
+  font-family: var(--hud-font);
+  font-size: 12px;
+  color: var(--cyan);
+  letter-spacing: 1px;
+}
+.sector-info__territory {
+  color: var(--amber);
+  font-size: 11px;
+  opacity: 0.85;
+}
+
+/* ============ Phase3：一次性反馈提示（降落/起飞/采集） ============ */
+.hud-toast {
+  position: absolute;
+  top: 90px;
+  left: 50%;
+  transform: translateX(-50%) translateY(-8px);
+  padding: 8px 20px;
+  border: 1px solid var(--cyan-dim);
+  background: rgba(1, 2, 4, 0.55);
+  color: var(--cyan);
+  font-size: 13px;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+.hud-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ============ Phase3：降落/起飞/采矿上下文提示 ============ */
+.land-prompt {
+  position: absolute;
+  bottom: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: var(--display-font);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  color: var(--amber);
+  text-shadow: 0 0 12px rgba(255, 184, 77, 0.6);
+  opacity: 0;
+  transition: opacity 0.2s ease-out;
+}
+.land-prompt.visible {
+  opacity: 1;
+}
+
+/* ============ Phase4：空间站商店面板 ============ */
+.shop-panel {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(0.97);
+  width: min(560px, 92vw);
+  max-height: 82vh;
+  overflow-y: auto;
+  padding: 22px 26px 26px;
+  background: rgba(4, 7, 12, 0.92);
+  border: 1px solid var(--cyan-dim);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(46, 196, 255, 0.08) inset;
+  font-family: var(--hud-font);
+  color: #eaf6ff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+  z-index: 20;
+}
+.shop-panel.visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.shop-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--cyan-dim);
+  padding-bottom: 14px;
+  margin-bottom: 14px;
+}
+.shop-panel__title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.shop-panel__label {
+  font-size: 10px;
+  letter-spacing: 3px;
+  color: var(--steel);
+}
+.shop-panel__title {
+  font-family: var(--display-font);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--cyan);
+}
+.shop-panel__close {
+  font-family: var(--hud-font);
+  font-size: 12px;
+  letter-spacing: 1px;
+  color: var(--steel);
+  background: transparent;
+  border: 1px solid var(--cyan-dim);
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+}
+.shop-panel__close:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.shop-panel__credits {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+.shop-panel__credits-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--amber);
+  text-shadow: 0 0 10px rgba(255, 184, 77, 0.5);
+}
+
+.shop-panel__section {
+  margin-bottom: 18px;
+}
+.shop-panel__section-title {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--steel);
+  margin-bottom: 8px;
+}
+
+.shop-panel__table-header {
+  display: grid;
+  grid-template-columns: 1.6fr 0.9fr 0.7fr 1.4fr;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--steel);
+  letter-spacing: 1px;
+  padding: 0 4px 6px;
+  border-bottom: 1px solid rgba(46, 196, 255, 0.15);
+}
+
+.shop-panel__cargo-row {
+  display: grid;
+  grid-template-columns: 1.6fr 0.9fr 0.7fr 1.4fr;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+}
+.shop-panel__cargo-row:last-child {
+  border-bottom: none;
+}
+.shop-panel__resource-name {
+  color: #eaf6ff;
+}
+.shop-panel__resource-price {
+  color: var(--amber);
+}
+.shop-panel__resource-held {
+  color: var(--steel);
+}
+.shop-panel__row-actions {
+  display: flex;
+  gap: 6px;
+}
+.shop-panel__action-btn {
+  font-family: var(--hud-font);
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--cyan);
+  background: transparent;
+  border: 1px solid var(--cyan-dim);
+  padding: 5px 9px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+  white-space: nowrap;
+}
+.shop-panel__action-btn:hover:not(:disabled) {
+  color: var(--void-deep);
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+.shop-panel__action-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.shop-panel__repair-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+}
+.shop-panel__repair-status {
+  color: var(--steel);
+}
+.shop-panel__repair-status span {
+  color: #eaf6ff;
+  font-weight: 700;
+}
+.shop-panel__repair-btn {
+  font-family: var(--hud-font);
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  color: var(--amber);
+  background: transparent;
+  border: 1px solid rgba(255, 184, 77, 0.4);
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+}
+.shop-panel__repair-btn:hover:not(:disabled) {
+  color: var(--void-deep);
+  background: var(--amber);
+  border-color: var(--amber);
+}
+.shop-panel__repair-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ============ Phase5：阵营信息横幅 ============ */
+.shop-panel__faction-info {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 12px;
+  margin-bottom: 14px;
+  border: 1px solid rgba(255, 184, 77, 0.25);
+  background: rgba(255, 184, 77, 0.04);
+}
+.shop-panel__faction-info.hidden {
+  display: none;
+}
+.shop-panel__faction-name {
+  font-family: var(--display-font);
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #eaf6ff;
+}
+.shop-panel__faction-standing {
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 3px 8px;
+  border: 1px solid currentColor;
+}
+.shop-panel__faction-standing.standing--hostile { color: #ff5d47; }
+.shop-panel__faction-standing.standing--unfriendly { color: #ff9d6e; }
+.shop-panel__faction-standing.standing--neutral { color: var(--steel); }
+.shop-panel__faction-standing.standing--friendly { color: #7dffb3; }
+.shop-panel__faction-standing.standing--allied { color: var(--cyan); }
+
+/* ============ Phase5：任务板 ============ */
+.shop-panel__section.hidden {
+  display: none;
+}
+.shop-panel__mission-row {
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+}
+.shop-panel__mission-row:last-child {
+  border-bottom: none;
+}
+.shop-panel__mission-row.active {
+  border-left: 2px solid var(--cyan);
+  padding-left: 10px;
+  background: rgba(46, 196, 255, 0.04);
+}
+.shop-panel__mission-title {
+  font-weight: 700;
+  color: #eaf6ff;
+  margin-bottom: 3px;
+}
+.shop-panel__mission-desc {
+  color: var(--steel);
+  font-size: 12px;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+.shop-panel__mission-reward {
+  color: var(--amber);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.shop-panel__mission-progress {
+  color: var(--cyan);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.shop-panel__mission-empty {
+  color: var(--steel);
+  font-size: 12px;
+  padding: 10px 4px;
+  font-style: italic;
+}
+.shop-panel__action-btn--danger {
+  color: #ff5d47;
+  border-color: rgba(255, 93, 71, 0.4);
+}
+.shop-panel__action-btn--danger:hover:not(:disabled) {
+  color: var(--void-deep);
+  background: #ff5d47;
+  border-color: #ff5d47;
+}
+
+/* ============ Phase5：阵营科技树 ============ */
+.shop-panel__tech-row {
+  padding: 8px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  font-size: 13px;
+  opacity: 0.55;
+}
+.shop-panel__tech-row:last-child {
+  border-bottom: none;
+}
+.shop-panel__tech-row.unlocked {
+  opacity: 1;
+}
+.shop-panel__tech-row-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+.shop-panel__tech-name {
+  font-weight: 700;
+  color: #eaf6ff;
+}
+.shop-panel__tech-status {
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  color: var(--steel);
+}
+.shop-panel__tech-row.unlocked .shop-panel__tech-status {
+  color: var(--cyan);
+}
+.shop-panel__tech-desc {
+  color: var(--steel);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+/* ============ Phase6：飞船改装 ============ */
+.shop-panel__refit-row {
+  padding: 10px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.shop-panel__refit-row:last-child {
+  border-bottom: none;
+}
+.shop-panel__refit-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.shop-panel__refit-label {
+  font-family: var(--display-font);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #eaf6ff;
+}
+.shop-panel__refit-current {
+  font-size: 11px;
+  color: var(--cyan);
+}
+.shop-panel__refit-desc {
+  font-size: 12px;
+  color: var(--steel);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+.shop-panel__refit-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* ============ Phase7：小地图/雷达 ============ */
+.hud-minimap {
+  position: absolute;
+  top: 28px;
+  right: 28px;
+  margin-top: 130px; /* 避开右上角的系统状态仪表簇 */
+  width: 168px;
+  height: 168px;
+  opacity: 0.9;
+}
+.hud-minimap.hidden {
+  display: none;
+}
+.minimap-svg {
+  width: 100%;
+  height: 100%;
+}
+.minimap-ring {
+  fill: rgba(1, 2, 4, 0.35);
+  stroke: var(--cyan-dim);
+  stroke-width: 1;
+}
+.minimap-crosshair {
+  stroke: rgba(46, 196, 255, 0.15);
+  stroke-width: 0.5;
+}
+.minimap-player {
+  fill: var(--cyan);
+  filter: drop-shadow(0 0 3px rgba(46, 196, 255, 0.8));
+}
+.minimap-dot {
+  stroke: none;
+}
+.minimap-dot--planet {
+  fill: #7dffb3;
+}
+.minimap-dot--station {
+  fill: var(--amber);
+}
+.minimap-dot--enemy {
+  fill: #ff5d47;
+}
+
+/* ============ Phase7：菜单遮罩通用样式（开始菜单/暂停菜单/设置面板共用） ============ */
+.menu-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(1, 2, 4, 0.85);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease-out;
+  z-index: 30;
+}
+.menu-overlay.visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+/* 设置面板层级更高，因为它可能叠在暂停菜单之上打开 */
+.settings-panel {
+  z-index: 40;
+}
+
+.menu-panel {
+  width: min(380px, 90vw);
+  max-height: 84vh;
+  overflow-y: auto;
+  padding: 32px 30px;
+  background: rgba(4, 7, 12, 0.96);
+  border: 1px solid var(--cyan-dim);
+  box-shadow: 0 0 50px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(46, 196, 255, 0.08) inset;
+  font-family: var(--hud-font);
+  color: #eaf6ff;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.menu-panel--wide {
+  width: min(460px, 92vw);
+}
+
+.menu-panel__title {
+  font-family: var(--display-font);
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  color: #eaf6ff;
+  text-shadow: 0 0 12px var(--cyan-dim);
+  text-align: center;
+}
+.menu-panel__subtitle {
+  text-align: center;
+  font-size: 13px;
+  color: var(--steel);
+  letter-spacing: 2px;
+  margin-bottom: 8px;
+}
+.menu-panel__section-title {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--steel);
+  margin-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 14px;
+}
+
+.menu-btn {
+  font-family: var(--hud-font);
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: var(--cyan);
+  background: transparent;
+  border: 1px solid var(--cyan-dim);
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: all 0.15s ease-out;
+}
+.menu-btn:hover {
+  color: var(--void-deep);
+  background: var(--cyan);
+  border-color: var(--cyan);
+}
+.menu-btn--primary {
+  border-color: var(--cyan);
+  font-weight: 700;
+}
+.menu-btn--danger {
+  color: #ff5d47;
+  border-color: rgba(255, 93, 71, 0.4);
+}
+.menu-btn--danger:hover {
+  color: var(--void-deep);
+  background: #ff5d47;
+  border-color: #ff5d47;
+}
+
+/* ============ Phase7：开始菜单存档槽位列表 ============ */
+.start-menu__slot-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.start-menu__slot-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+}
+.start-menu__slot-label {
+  color: #eaf6ff;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.start-menu__slot-summary {
+  color: var(--steel);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0 8px;
+}
+.start-menu__slot-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* ============ Phase7：设置面板控件行 ============ */
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 13px;
+  color: #eaf6ff;
+  padding: 6px 0;
+}
+.settings-row small {
+  display: block;
+  color: var(--steel);
+  font-size: 10px;
+  margin-top: 2px;
+}
+.settings-row input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--cyan);
+}
+.settings-row input[type='range'] {
+  width: 140px;
+  accent-color: var(--cyan);
+}
+.settings-row select {
+  background: rgba(255, 255, 255, 0.06);
+  color: #eaf6ff;
+  border: 1px solid var(--cyan-dim);
+  padding: 6px 8px;
+  font-family: var(--hud-font);
+  font-size: 12px;
+}

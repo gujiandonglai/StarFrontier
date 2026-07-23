@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Star Frontier · 星海边境</title>
+  <link rel="stylesheet" href="./style.css" />
+
+  <!--
+    Three.js 通过浏览器原生 ES Module Import Map 引入，无需打包工具。
+    锁定具体版本号，避免上游发布 breaking change 导致游戏运行时报错。
+  -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.166.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.166.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <canvas id="game-canvas"></canvas>
+
+  <!-- ============ HUD 覆盖层：Phase1 飞行仪表 + Phase2 战斗仪表 ============ -->
+  <div id="hud-root" aria-hidden="true">
+
+    <!-- 中央准星 -->
+    <div class="reticle">
+      <div class="reticle-ring"></div>
+      <div class="reticle-dot"></div>
+    </div>
+
+    <!-- 左下：速度 / 油门 / 冲刺 / 副武器 仪表组 -->
+    <div class="instrument-cluster instrument-cluster--bl">
+      <div class="instrument">
+        <span class="instrument__bracket">[</span>
+        <span class="instrument__label">VEL</span>
+        <span class="instrument__value" id="hud-speed">0</span>
+        <span class="instrument__unit">m/s</span>
+        <span class="instrument__bracket">]</span>
+      </div>
+      <div class="instrument">
+        <span class="instrument__bracket">[</span>
+        <span class="instrument__label">THR</span>
+        <span class="instrument__value" id="hud-throttle">0</span>
+        <span class="instrument__unit">%</span>
+        <span class="instrument__bracket">]</span>
+      </div>
+      <div class="instrument instrument--boost" id="hud-boost">
+        <span class="instrument__label">BOOST</span>
+      </div>
+      <div class="instrument instrument--secondary" id="hud-secondary">
+        <span class="instrument__label">MISSILE&nbsp;[F]</span>
+      </div>
+    </div>
+
+    <!-- 右下：船体 / 护盾 / 货舱 条形仪表 -->
+    <div class="instrument-cluster instrument-cluster--br">
+      <div class="bar-instrument">
+        <div class="bar-instrument__label">HULL</div>
+        <div class="bar-instrument__track">
+          <div class="bar-instrument__fill bar-instrument__fill--hull" id="hud-hull-fill"></div>
+        </div>
+        <div class="bar-instrument__value"><span id="hud-hull-value">100</span>%</div>
+      </div>
+      <div class="bar-instrument">
+        <div class="bar-instrument__label">SHIELD</div>
+        <div class="bar-instrument__track">
+          <div class="bar-instrument__fill bar-instrument__fill--shield" id="hud-shield-fill"></div>
+        </div>
+        <div class="bar-instrument__value"><span id="hud-shield-value">100</span>%</div>
+      </div>
+      <div class="bar-instrument">
+        <div class="bar-instrument__label">ENERGY</div>
+        <div class="bar-instrument__track">
+          <div class="bar-instrument__fill bar-instrument__fill--energy" id="hud-energy-fill"></div>
+        </div>
+        <div class="bar-instrument__value"><span id="hud-energy-value">100</span>%</div>
+      </div>
+      <div class="instrument">
+        <span class="instrument__bracket">[</span>
+        <span class="instrument__label">CARGO</span>
+        <span class="instrument__value" id="hud-cargo-value">0</span>
+        <span class="instrument__unit">/&nbsp;<span id="hud-cargo-capacity">100</span></span>
+        <span class="instrument__bracket">]</span>
+      </div>
+      <div class="instrument">
+        <span class="instrument__bracket">[</span>
+        <span class="instrument__label">CR</span>
+        <span class="instrument__value" id="hud-credits">0</span>
+        <span class="instrument__bracket">]</span>
+      </div>
+    </div>
+
+    <!-- 右上：系统状态 -->
+    <div class="instrument-cluster instrument-cluster--tr">
+      <div class="instrument instrument--ghost">
+        <span class="instrument__label">FPS</span>
+        <span class="instrument__value" id="hud-fps">0</span>
+      </div>
+      <div class="instrument instrument--ghost">
+        <span class="instrument__label">HOSTILES</span>
+        <span class="instrument__value" id="hud-enemy-count">0</span>
+      </div>
+      <div class="instrument instrument--ghost">
+        <span class="instrument__label">KILLS</span>
+        <span class="instrument__value" id="hud-kill-count">0</span>
+      </div>
+      <div class="instrument instrument--ghost">
+        <span class="instrument__label">PHASE</span>
+        <span class="instrument__value">08</span>
+      </div>
+    </div>
+
+    <!-- 左上：项目标识 + 当前星域信息 -->
+    <div class="brand-mark">
+      <span class="brand-mark__title">STAR&nbsp;FRONTIER</span>
+      <span class="brand-mark__subtitle">星海边境 · 动态银河原型 Phase 8</span>
+      <span class="sector-info">
+        <span id="hud-sector-name">未知星域</span>
+        <span class="sector-info__territory" id="hud-sector-territory">—</span>
+      </span>
+    </div>
+
+    <!-- Phase7：小地图/雷达（世界坐标系对齐，不随飞船朝向旋转） -->
+    <div class="hud-minimap" id="hud-minimap"></div>
+
+    <!-- 屏幕上方：一次性反馈提示（降落/起飞/采集/对接/交易结果） -->
+    <div class="hud-toast" id="hud-toast"></div>
+
+    <!-- 底部中央：操作提示 -->
+    <div class="control-hints">
+      <span><b>W/S</b> 俯仰</span>
+      <span><b>A/D</b> 偏航</span>
+      <span><b>Q/E</b> 横滚</span>
+      <span><b>↑/↓</b> 油门</span>
+      <span><b>Shift</b> 冲刺</span>
+      <span><b>Space</b> 刹车</span>
+      <span><b>左键</b> 开火</span>
+      <span><b>F</b> 导弹</span>
+      <span><b>L</b> 降落/起飞</span>
+      <span><b>K</b> 对接</span>
+      <span><b>Esc</b> 暂停</span>
+    </div>
+
+    <!-- 降落/起飞/采矿/对接的上下文提示，只在条件满足时出现 -->
+    <div class="land-prompt" id="hud-land-prompt"></div>
+
+    <!-- 阵亡遮罩：Phase2 尚无重生/存档流程，先给出明确的战斗结束反馈 -->
+    <div class="game-over-overlay" id="game-over-overlay">
+      <div class="game-over-overlay__title">SHIP DESTROYED</div>
+      <div class="game-over-overlay__hint">刷新页面重新开始 —— 重生/存档系统将在 Phase 7 加入</div>
+    </div>
+  </div>
+
+  <!-- ============ Phase4：空间站商店面板（对接后弹出，纯 DOM，不占用 3D 渲染） ============ -->
+  <div class="shop-panel" id="shop-panel" aria-hidden="true">
+    <div class="shop-panel__header">
+      <div class="shop-panel__title-group">
+        <span class="shop-panel__label">DOCKED&nbsp;AT</span>
+        <span class="shop-panel__title" id="shop-station-name">——</span>
+      </div>
+      <button class="shop-panel__close" id="shop-close-btn" type="button">[ K ] 离开</button>
+    </div>
+
+    <!-- Phase5：阵营归属与当前声望 -->
+    <div class="shop-panel__faction-info" id="shop-faction-info">
+      <span class="shop-panel__faction-name" id="shop-faction-name">——</span>
+      <span class="shop-panel__faction-standing" id="shop-faction-standing">中立</span>
+    </div>
+
+    <div class="shop-panel__credits">
+      <span class="shop-panel__label">CREDITS</span>
+      <span class="shop-panel__credits-value" id="shop-credits">0</span>
+    </div>
+
+    <!-- Phase5：任务板 -->
+    <div class="shop-panel__section" id="shop-mission-section">
+      <div class="shop-panel__section-title">任务板</div>
+      <div class="shop-panel__mission-list" id="shop-mission-list"><!-- 由 main.js 动态填充 --></div>
+    </div>
+
+    <div class="shop-panel__section">
+      <div class="shop-panel__section-title">资源市场</div>
+      <div class="shop-panel__table-header">
+        <span>资源</span>
+        <span>单价</span>
+        <span>持有</span>
+        <span>操作</span>
+      </div>
+      <div class="shop-panel__cargo-list" id="shop-market-list"><!-- 由 main.js 动态填充 --></div>
+    </div>
+
+    <div class="shop-panel__section">
+      <div class="shop-panel__section-title">维修</div>
+      <div class="shop-panel__repair-row">
+        <span class="shop-panel__repair-status">装甲 <span id="shop-hull-ratio">100</span>%</span>
+        <button class="shop-panel__repair-btn" id="shop-repair-btn" type="button">
+          维修全部（<span id="shop-repair-cost">0</span>&nbsp;信用点）
+        </button>
+      </div>
+    </div>
+
+    <!-- Phase6：飞船模块化改装 -->
+    <div class="shop-panel__section">
+      <div class="shop-panel__section-title">飞船改装</div>
+      <div class="shop-panel__refit-list" id="shop-refit-list"><!-- 由 main.js 动态填充 --></div>
+    </div>
+
+    <!-- Phase5：该阵营的科技树 -->
+    <div class="shop-panel__section" id="shop-techtree-section">
+      <div class="shop-panel__section-title">阵营科技树</div>
+      <div class="shop-panel__techtree-list" id="shop-techtree-list"><!-- 由 main.js 动态填充 --></div>
+    </div>
+  </div>
+
+  <!-- ============ Phase7：开始菜单 ============ -->
+  <div class="menu-overlay start-menu visible" id="start-menu">
+    <div class="menu-panel menu-panel--wide">
+      <div class="menu-panel__title">STAR&nbsp;FRONTIER</div>
+      <div class="menu-panel__subtitle">星海边境</div>
+
+      <button class="menu-btn menu-btn--primary" id="start-new-game-btn" type="button">新游戏</button>
+      <button class="menu-btn" id="start-settings-btn" type="button">设置</button>
+
+      <div class="menu-panel__section-title">存档</div>
+      <div class="start-menu__slot-list" id="start-slot-list"><!-- 由 main.js 动态填充 --></div>
+    </div>
+  </div>
+
+  <!-- ============ Phase7：暂停菜单（Esc 切换） ============ -->
+  <div class="menu-overlay pause-menu" id="pause-menu">
+    <div class="menu-panel">
+      <div class="menu-panel__title">已暂停</div>
+
+      <button class="menu-btn menu-btn--primary" id="pause-resume-btn" type="button">继续游戏</button>
+      <button class="menu-btn" id="pause-save-slot1-btn" type="button">保存到存档槽 1</button>
+      <button class="menu-btn" id="pause-save-slot2-btn" type="button">保存到存档槽 2</button>
+      <button class="menu-btn" id="pause-save-slot3-btn" type="button">保存到存档槽 3</button>
+      <button class="menu-btn" id="pause-settings-btn" type="button">设置</button>
+      <button class="menu-btn menu-btn--danger" id="pause-quit-btn" type="button">返回主菜单</button>
+    </div>
+  </div>
+
+  <!-- ============ Phase7：设置面板（开始菜单/暂停菜单共用） ============ -->
+  <div class="menu-overlay settings-panel" id="settings-panel">
+    <div class="menu-panel">
+      <div class="menu-panel__title">设置</div>
+
+      <label class="settings-row">
+        <span>反转俯仰（Y 轴）</span>
+        <input type="checkbox" id="settings-invert-pitch" />
+      </label>
+
+      <label class="settings-row">
+        <span>HUD 透明度</span>
+        <input type="range" id="settings-hud-opacity" min="0.4" max="1" step="0.05" />
+      </label>
+
+      <label class="settings-row">
+        <span>图形质量<small>（下次开始游戏时生效）</small></span>
+        <select id="settings-graphics-quality">
+          <option value="low">低</option>
+          <option value="medium">中</option>
+          <option value="high">高</option>
+        </select>
+      </label>
+
+      <label class="settings-row">
+        <span>显示小地图</span>
+        <input type="checkbox" id="settings-show-minimap" />
+      </label>
+
+      <label class="settings-row">
+        <span>自动存档</span>
+        <input type="checkbox" id="settings-autosave-enabled" />
+      </label>
+
+      <button class="menu-btn menu-btn--primary" id="settings-close-btn" type="button">关闭</button>
+    </div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
